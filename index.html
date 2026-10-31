@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>スライド造形ツール (16レーン・レーン外非表示対応)</title>
+  <title>スライド造形ツール (16レーン・中継追加＆プレビュー修正版)</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
   <style>
@@ -26,7 +26,6 @@
     .layer-item.selected { background: rgba(14, 165, 233, 0.18); border-color: rgba(56, 189, 248, 0.65); }
     .relay-mode-btn.active-add { background: linear-gradient(135deg, #c026d3 0%, #9333ea 100%); border-color: #f0abfc; color: #ffffff; box-shadow: 0 0 14px rgba(217, 70, 239, 0.5); }
     .snap-btn.active { background: #0284c7; border-color: #7dd3fc; color: #ffffff; }
-    .tap-curve-btn.active { background: linear-gradient(135deg, #a21caf 0%, #7e22ce 100%); border-color: #f0abfc; color: #ffffff; }
   </style>
 </head>
 <body class="min-h-screen flex flex-col bg-[#090b10] text-slate-100">
@@ -152,10 +151,9 @@
   </main>
 
   <script>
-    const GRID_COLS = 16; // 16レーン (外側2レーン + 中央12レーン + 外側2レーン)
+    const GRID_COLS = 16;
     const MAX_FINE_DIVISIONS = 1920;
     const ALLOWED_ROW_DIVISIONS = [4, 8, 16, 32, 64, 128, 192, 1920];
-    const STORAGE_KEY_PALETTE = 'dot_persp_palette_16l_v1';
 
     const NODE_BOX_HALF_H = 18;
     const NODE_EDGE_HIT_W = 14;
@@ -170,7 +168,7 @@
     const CURVE_MODES = { straight: '直線 ｜ ｜', left: 'カーブ （ （', right: 'カーブ ） ）' };
 
     const PERSP_GEOM = {
-      topY: 0.118, topLeftX: 0.480, topRightX: 0.520, botY: 0.813, botLeftX: 0.152, botRightX: 0.848, numMainLanes: 6,
+      topY: 0.08, topLeftX: 0.480, topRightX: 0.520, botY: 0.92, botLeftX: 0.12, botRightX: 0.88, numMainLanes: 6,
       verticalStopsFromTop: [0.0000, 0.0291, 0.0676, 0.1180, 0.1842, 0.2719, 0.3885, 0.5942, 0.8317, 1.0000]
     };
 
@@ -187,31 +185,24 @@
       mode: 'draw',
       relaySubMode: null,
       fine1920Snap: false,
-      tapNodeToCycleCurve: true,
       paletteZoom: 100,
       gridRows: 16,
-      lastUsedWidth: 2,
       currentColor: 'green',
       currentCurveMode: 'straight',
       slideOpacity: 0.85,
       guideOpacity: 0.85,
-      grid: Array.from({ length: 16 }, () => Array(GRID_COLS).fill(null)),
       shapes: [],
       selectedShapeIds: [],
       activeShapeId: null,
       activeNodeIndex: 0,
-      clipboardShapes: [],
       history: [],
       redoStack: []
     };
-
-    const hoverState = { inside: false, col: 0, row: 0, px: 0, py: 0, type: null, shapeId: null, nodeIndex: -1, label: '' };
 
     const paletteCanvas = document.getElementById('paletteCanvas');
     const paletteCtx = paletteCanvas.getContext('2d');
     const previewCanvas = document.getElementById('previewCanvas');
     const previewCtx = previewCanvas.getContext('2d');
-    const paletteViewport = document.getElementById('paletteViewport');
     const paletteZoomInner = document.getElementById('paletteZoomInner');
 
     const PALETTE_LOGICAL_W = 720;
@@ -370,10 +361,7 @@
     }
 
     function gridToPerspectiveXY(col, rowFromBot) {
-      // 16レーン中の「左端2レーン・右端2レーン」をプレビューで非表示にするため、
-      // 中央の12レーン（インデックス2〜14付近、あるいはオフセット調整）を画面内に収める。
-      // ここでは 0〜15 のうちレーンインデックス 2 〜 14 (実質12レーン分) を基準枠内にマッピングします。
-      const innerCol = col - 2.0; // 左右2レーン分(index 0,1)をオフセット
+      const innerCol = col - 2.0;
       const u = innerCol / 12.0;
       const vFromTop = 1 - (rowFromBot / state.gridRows);
       const t = (Math.exp(SMOOTH_PERSP_K * vFromTop) - 1) / (Math.exp(SMOOTH_PERSP_K) - 1);
@@ -398,7 +386,6 @@
 
       for (const shape of state.shapes) drawSmoothShapeOnPalette(ctx, shape);
 
-      // 16レーン区切り線（2レーン目と14レーン目を太線にするなど視覚化）
       ctx.save();
       for (let c = 0; c <= GRID_COLS; c++) {
         const x = gx0 + c * CELL_W;
@@ -492,7 +479,6 @@
       ctx.fillStyle = '#000000';
       ctx.fillRect(0, 0, W, H);
 
-      // レーン外（左右各2レーン：インデックス0,1および14,15）の領域を除外して描画
       ctx.save();
       const clipLeft = gridToPerspectiveXY(2, 0), clipRight = gridToPerspectiveXY(14, 0);
       const clipTopL = gridToPerspectiveXY(2, rows), clipTopR = gridToPerspectiveXY(14, rows);
@@ -507,7 +493,6 @@
       }
       ctx.restore();
 
-      // 中央12レーン分の白枠レーン線を描画
       ctx.save();
       ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2.8;
       for (const t of [0, 1]) {
@@ -574,9 +559,40 @@
       }
       document.querySelectorAll('.curve-btn').forEach(btn => btn.classList.toggle('active', btn.dataset.curve === cMode));
       document.getElementById('lblCurveModeName').textContent = CURVE_MODES[cMode] || CURVE_MODES.straight;
+
+      const btnAdd = document.getElementById('btnAddRelayPoint');
+      if (btnAdd) btnAdd.classList.toggle('active-add', state.relaySubMode === 'add');
     }
 
-    // ドラッグ＆ドロップ関連
+    function toggleRelayAddMode() {
+      state.relaySubMode = state.relaySubMode === 'add' ? null : 'add';
+      syncUIWithSelectedShape();
+      renderAll();
+    }
+
+    function insertRelayPointAtRow(shape, rawRowFloat) {
+      const step1920 = getMinFineStepY();
+      let segIdx = -1;
+      for (let k = 0; k < shape.nodes.length - 1; k++) {
+        if (rawRowFloat >= shape.nodes[k].y && rawRowFloat <= shape.nodes[k + 1].y) { segIdx = k; break; }
+      }
+      if (segIdx < 0 || shape.nodes[segIdx + 1].y - shape.nodes[segIdx].y < step1920 * 2) return false;
+
+      saveHistory();
+      const newY = snapFine1920(rawRowFloat, shape.nodes[segIdx].y + step1920, shape.nodes[segIdx + 1].y - step1920);
+      const { leftCol, rightCol } = evaluateSegmentEdgesAtTau(shape.nodes[segIdx], shape.nodes[segIdx + 1], (newY - shape.nodes[segIdx].y) / (shape.nodes[segIdx + 1].y - shape.nodes[segIdx].y));
+      shape.nodes.splice(segIdx + 1, 0, {
+        left: snapInt(leftCol, 0, GRID_COLS - 1),
+        right: Math.max(snapInt(leftCol, 0, GRID_COLS - 1) + 1, snapInt(rightCol, 1, GRID_COLS)),
+        y: newY,
+        curveMode: shape.nodes[segIdx].curveMode
+      });
+      state.activeNodeIndex = segIdx + 1;
+      syncUIWithSelectedShape();
+      renderAll();
+      return true;
+    }
+
     const dragState = { active: false, type: null, nodeIndex: 0, pendingSnapshot: null, startGridCol: 0, initialNodes: null };
 
     paletteCanvas.addEventListener('pointerdown', (evt) => {
@@ -586,13 +602,20 @@
       const gridPt = paletteXYToGrid(pos.x, pos.y);
 
       const activeShape = getActiveShape();
+
+      // 中継点追加モード時の処理
+      if (state.relaySubMode === 'add' && activeShape && isPointInsideShape(activeShape, gridPt.col, gridPt.row)) {
+        insertRelayPointAtRow(activeShape, gridPt.row);
+        return;
+      }
+
       if (activeShape) {
         for (let k = 0; k < activeShape.nodes.length; k++) {
           const zone = hitTestNodeBox(activeShape.nodes[k], pos.x, pos.y);
           if (zone) {
             state.activeNodeIndex = k;
             dragState.active = true;
-            dragState.type = zone; // 'left' | 'right' | 'center'
+            dragState.type = zone;
             dragState.nodeIndex = k;
             dragState.pendingSnapshot = createSnapshot();
             dragState.startGridCol = Math.round(gridPt.col);
@@ -601,125 +624,3 @@
             renderAll();
             return;
           }
-        }
-      }
-
-      // 図形選択
-      for (let i = state.shapes.length - 1; i >= 0; i--) {
-        if (isPointInsideShape(state.shapes[i], gridPt.col, gridPt.row)) {
-          selectSingleShape(state.shapes[i].id, 0);
-          dragState.active = true;
-          dragState.type = 'moveShape';
-          dragState.pendingSnapshot = createSnapshot();
-          dragState.startGridCol = Math.round(gridPt.col);
-          dragState.initialNodes = JSON.parse(JSON.stringify(state.shapes[i].nodes));
-          renderAll();
-          return;
-        }
-      }
-
-      // 新規作成
-      const snapBefore = createSnapshot();
-      const startLeft = snapInt(Math.floor(gridPt.col) - 1, 0, GRID_COLS - 2);
-      const newShape = normalizeShape({
-        id: 'shape_' + Date.now(),
-        color: state.currentColor,
-        nodes: [
-          { left: startLeft, right: startLeft + 2, y: 0, curveMode: state.currentCurveMode },
-          { left: startLeft, right: startLeft + 2, y: Math.max(1, snapInt(gridPt.row, 1, state.gridRows)), curveMode: 'straight' }
-        ]
-      });
-      state.shapes.push(newShape);
-      selectSingleShape(newShape.id, 1);
-      dragState.active = true;
-      dragState.type = 'center';
-      dragState.nodeIndex = 1;
-      dragState.pendingSnapshot = snapBefore;
-      renderAll();
-    });
-
-    paletteCanvas.addEventListener('pointermove', (evt) => {
-      if (!dragState.active) return;
-      const pos = getCanvasMousePos(paletteCanvas, evt);
-      const gridPt = paletteXYToGrid(pos.x, pos.y);
-      const shape = getActiveShape();
-      if (!shape) return;
-
-      if (dragState.type === 'moveShape') {
-        const dCol = Math.round(gridPt.col) - dragState.startGridCol;
-        for (let k = 0; k < shape.nodes.length; k++) {
-          const w = dragState.initialNodes[k].right - dragState.initialNodes[k].left;
-          const newL = Math.max(0, Math.min(GRID_COLS - w, dragState.initialNodes[k].left + dCol));
-          shape.nodes[k].left = newL;
-          shape.nodes[k].right = newL + w;
-        }
-      } else if (dragState.type === 'left') {
-        // 左端の縦辺ドラッグ：幅を変更（横移動ではなく幅の伸縮）
-        const node = shape.nodes[dragState.nodeIndex];
-        const newLeft = Math.max(0, Math.min(node.right - 1, Math.round(gridPt.col)));
-        node.left = newLeft;
-      } else if (dragState.type === 'right') {
-        // 右端の縦辺ドラッグ：幅を変更
-        const node = shape.nodes[dragState.nodeIndex];
-        const newRight = Math.max(node.left + 1, Math.min(GRID_COLS, Math.round(gridPt.col)));
-        node.right = newRight;
-      } else if (dragState.type === 'center') {
-        const node = shape.nodes[dragState.nodeIndex];
-        const w = node.right - node.left;
-        node.left = snapInt(Math.round(gridPt.col) - Math.floor(w / 2), 0, GRID_COLS - w);
-        node.right = node.left + w;
-        node.y = snapFine1920(gridPt.row, 0, state.gridRows);
-      }
-      renderAll();
-    });
-
-    function finishPointerDrag() {
-      if (!dragState.active) return;
-      if (dragState.pendingSnapshot) {
-        state.history.push(dragState.pendingSnapshot);
-        state.redoStack = [];
-        updateHistoryButtons();
-      }
-      dragState.active = false;
-      dragState.type = null;
-      renderAll();
-    }
-
-    paletteCanvas.addEventListener('pointerup', finishPointerDrag);
-    paletteCanvas.addEventListener('pointercancel', finishPointerDrag);
-
-    // カーブボタン（選択中のセグメントのみ変更）
-    document.querySelectorAll('.curve-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const mode = btn.dataset.curve;
-        state.currentCurveMode = mode;
-        const sh = getActiveShape();
-        if (sh && sh.nodes.length >= 2) {
-          saveHistory();
-          const segIdx = Math.min(state.activeNodeIndex, sh.nodes.length - 2);
-          sh.nodes[segIdx].curveMode = mode; // アクティブなセグメントのみ変更！
-          renderAll();
-        }
-        syncUIWithSelectedShape();
-      });
-    });
-
-    document.getElementById('btnClearAll').addEventListener('click', () => {
-      saveHistory();
-      state.shapes = [];
-      selectSingleShape(null);
-      renderAll();
-    });
-
-    function getCanvasMousePos(canvas, evt) {
-      const rect = canvas.getBoundingClientRect();
-      return { x: (evt.clientX - rect.left) * (PALETTE_LOGICAL_W / rect.width), y: (evt.clientY - rect.top) * (PALETTE_LOGICAL_H / rect.height) };
-    }
-
-    window.onload = () => {
-      setPaletteZoom(100);
-      renderAll();
-    };
-  </script>
-</body>
-</html>
