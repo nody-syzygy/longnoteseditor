@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>スライド造形ツール (16レーン・中継追加＆プレビュー修正版)</title>
+  <title>スライド造形ツール (16レーン・描画修正版)</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
   <style>
@@ -25,7 +25,6 @@
     .color-swatch.active { transform: scale(1.08); box-shadow: 0 0 0 2px #090b10, 0 0 0 4px #ffffff, 0 0 16px currentColor; }
     .layer-item.selected { background: rgba(14, 165, 233, 0.18); border-color: rgba(56, 189, 248, 0.65); }
     .relay-mode-btn.active-add { background: linear-gradient(135deg, #c026d3 0%, #9333ea 100%); border-color: #f0abfc; color: #ffffff; box-shadow: 0 0 14px rgba(217, 70, 239, 0.5); }
-    .snap-btn.active { background: #0284c7; border-color: #7dd3fc; color: #ffffff; }
   </style>
 </head>
 <body class="min-h-screen flex flex-col bg-[#090b10] text-slate-100">
@@ -48,7 +47,7 @@
         </div>
       </div>
       <div class="flex items-center gap-2 flex-wrap">
-        <button id="btnClearAll" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-rose-950/60 hover:bg-rose-900/80 text-rose-200 border border-rose-800/60 transition">🗑 全消去</button>
+        <button id="btnClearAll" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-rose-950/65 hover:bg-rose-900/80 text-rose-200 border border-rose-800/60 transition">🗑 全消去</button>
         <button id="btnExportPreview" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm transition">⬇ プレビュー画像保存</button>
       </div>
     </div>
@@ -90,12 +89,6 @@
           <span id="lblSelectedNodeInfo" class="text-[9px] font-mono text-amber-300 truncate text-center">未選択</span>
           <button id="btnAddRelayPoint" class="relay-mode-btn w-full py-1.5 rounded-lg bg-fuchsia-600/20 border border-fuchsia-500/40 text-fuchsia-200 text-[10px] font-bold">＋中継追加</button>
         </div>
-        <div class="bg-slate-950/70 border border-slate-800/90 rounded-lg p-1 flex flex-col gap-1">
-          <span class="text-[9px] font-bold uppercase tracking-wider text-slate-300 text-center">編集</span>
-          <button id="btnCopyShape" class="w-full py-1 rounded bg-slate-800 text-[10px]">コピー</button>
-          <button id="btnPasteShape" class="w-full py-1 rounded bg-slate-800 text-[10px]">貼付</button>
-          <button id="btnDeleteShape" class="w-full py-1 rounded bg-rose-950 text-[10px] text-rose-200">削除</button>
-        </div>
       </div>
 
       <!-- CENTER: PALETTE -->
@@ -130,14 +123,8 @@
             <button data-color="yellow" class="color-swatch w-8 h-8 rounded-lg border-2 border-yellow-200" style="background:#FEF7A9;"></button>
           </div>
         </div>
-        <div class="bg-slate-950/70 border border-slate-800/90 rounded-lg p-1 flex flex-col items-center gap-1">
-          <span class="text-[9px] font-bold uppercase tracking-wider text-slate-300">分割数</span>
-          <button id="btnGridPlus" class="w-full py-1 bg-slate-800 text-xs font-bold">＋</button>
-          <span id="lblCurrentGridRows" class="text-xs font-mono font-bold text-sky-300">16</span>
-          <button id="btnGridMinus" class="w-full py-1 bg-slate-800 text-xs font-bold">－</button>
-        </div>
         <div class="bg-slate-950/70 border border-slate-800/90 rounded-lg p-1 flex flex-col gap-1">
-          <span class="text-[9px] font-bold uppercase tracking-wider text-slate-300 text-center">カーブ (区間)</span>
+          <span class="text-[9px] font-bold uppercase tracking-wider text-slate-300 text-center">カーブ</span>
           <span id="lblCurveModeName" class="text-[9px] font-mono text-fuchsia-300 font-bold text-center truncate">直線 ｜｜</span>
           <div class="flex flex-col gap-1">
             <button data-curve="straight" class="curve-btn active w-full py-1 rounded bg-slate-800 text-[10px]">｜ ｜</button>
@@ -153,44 +140,30 @@
   <script>
     const GRID_COLS = 16;
     const MAX_FINE_DIVISIONS = 1920;
-    const ALLOWED_ROW_DIVISIONS = [4, 8, 16, 32, 64, 128, 192, 1920];
-
-    const NODE_BOX_HALF_H = 18;
-    const NODE_EDGE_HIT_W = 14;
 
     const COLORS = {
-      green: { id: 'green', name: 'ガイド', hex: '#00e676', rgb: [0, 230, 118], fadeToTransparent: true },
-      yellowgreen: { id: 'yellowgreen', name: 'スライド', hex: '#52FFBD', rgb: [82, 255, 189], fadeToTransparent: false },
-      yellow: { id: 'yellow', name: '金スライド', hex: '#FEF7A9', rgb: [254, 247, 169], fadeToTransparent: false },
-      orange: { id: 'orange', name: '金ガイド', hex: '#FFCD42', rgb: [255, 205, 66], fadeToTransparent: true }
+      green: { id: 'green', name: 'ガイド', rgb: [0, 230, 118], fadeToTransparent: true },
+      yellowgreen: { id: 'yellowgreen', name: 'スライド', rgb: [82, 255, 189], fadeToTransparent: false },
+      yellow: { id: 'yellow', name: '金スライド', rgb: [254, 247, 169], fadeToTransparent: false },
+      orange: { id: 'orange', name: '金ガイド', rgb: [255, 205, 66], fadeToTransparent: true }
     };
 
     const CURVE_MODES = { straight: '直線 ｜ ｜', left: 'カーブ （ （', right: 'カーブ ） ）' };
 
     const PERSP_GEOM = {
-      topY: 0.08, topLeftX: 0.480, topRightX: 0.520, botY: 0.92, botLeftX: 0.12, botRightX: 0.88, numMainLanes: 6,
-      verticalStopsFromTop: [0.0000, 0.0291, 0.0676, 0.1180, 0.1842, 0.2719, 0.3885, 0.5942, 0.8317, 1.0000]
+      topY: 0.12, topLeftX: 0.48, topRightX: 0.52, botY: 0.88, botLeftX: 0.15, botRightX: 0.85,
+      verticalStopsFromTop: [0.0, 0.03, 0.07, 0.12, 0.18, 0.27, 0.39, 0.59, 0.83, 1.0]
     };
 
-    const SMOOTH_PERSP_K = (() => {
-      const stops = PERSP_GEOM.verticalStopsFromTop;
-      let logRatioSum = 0;
-      for (let i = 0; i < stops.length - 2; i++) {
-        logRatioSum += Math.log((stops[i+2] - stops[i+1]) / (stops[i+1] - stops[i]));
-      }
-      return (logRatioSum / (stops.length - 3)) * (stops.length - 1);
-    })();
+    const SMOOTH_PERSP_K = 2.5;
 
     const state = {
       mode: 'draw',
       relaySubMode: null,
-      fine1920Snap: false,
       paletteZoom: 100,
       gridRows: 16,
       currentColor: 'green',
       currentCurveMode: 'straight',
-      slideOpacity: 0.85,
-      guideOpacity: 0.85,
       shapes: [],
       selectedShapeIds: [],
       activeShapeId: null,
@@ -227,68 +200,16 @@
     }
 
     function getCellH() { return PLOT_H / state.gridRows; }
-    function getMinFineStepY() { return state.gridRows / MAX_FINE_DIVISIONS; }
-    function snapFine1920(val, min, max) {
-      const step = getMinFineStepY();
-      return Math.max(min, Math.min(max, Number((Math.round((Number.isFinite(val) ? val : min) / step) * step).toFixed(6))));
-    }
 
-    function normalizeShape(raw, rows = state.gridRows) {
+    function normalizeShape(raw) {
       const color = COLORS[raw.color] ? raw.color : 'green';
       const nodes = (raw.nodes || []).map(n => ({
-        left: snapInt(n.left ?? 0, 0, GRID_COLS - 1),
-        right: Math.max(snapInt(n.left ?? 0, 0, GRID_COLS - 1) + 1, snapInt(n.right ?? 1, 1, GRID_COLS)),
-        y: snapFine1920(n.y ?? 0, 0, rows),
+        left: Math.max(0, Math.min(GRID_COLS - 1, n.left ?? 0)),
+        right: Math.max(1, Math.min(GRID_COLS, n.right ?? 1)),
+        y: Math.max(0, Math.min(state.gridRows, n.y ?? 0)),
         curveMode: ['straight', 'left', 'right'].includes(n.curveMode) ? n.curveMode : 'straight'
       }));
-      return { id: raw.id || ('shape_' + Date.now() + '_' + Math.floor(Math.random() * 1000)), color, nodes };
-    }
-
-    function createSnapshot() {
-      return {
-        gridRows: state.gridRows,
-        shapes: JSON.parse(JSON.stringify(state.shapes)),
-        selectedShapeIds: [...state.selectedShapeIds],
-        activeShapeId: state.activeShapeId,
-        activeNodeIndex: state.activeNodeIndex
-      };
-    }
-
-    function saveHistory() {
-      state.history.push(createSnapshot());
-      if (state.history.length > 50) state.history.shift();
-      state.redoStack = [];
-      updateHistoryButtons();
-    }
-
-    function applySnapshot(snap) {
-      if (!snap) return;
-      state.gridRows = snap.gridRows;
-      state.shapes = snap.shapes.map(s => normalizeShape(s, snap.gridRows));
-      state.selectedShapeIds = [...snap.selectedShapeIds];
-      state.activeShapeId = snap.activeShapeId;
-      state.activeNodeIndex = snap.activeNodeIndex;
-      updateHistoryButtons();
-      renderAll();
-    }
-
-    function undo() {
-      if (state.history.length === 0) return;
-      const cur = createSnapshot();
-      state.redoStack.push(cur);
-      applySnapshot(state.history.pop());
-    }
-
-    function redo() {
-      if (state.redoStack.length === 0) return;
-      const cur = createSnapshot();
-      state.history.push(cur);
-      applySnapshot(state.redoStack.pop());
-    }
-
-    function updateHistoryButtons() {
-      document.getElementById('btnUndo').disabled = state.history.length === 0;
-      document.getElementById('btnRedo').disabled = state.redoStack.length === 0;
+      return { id: raw.id || ('shape_' + Math.random()), color, nodes };
     }
 
     function gridToPaletteXY(col, rowFromBot) {
@@ -299,24 +220,6 @@
       const col = (px - PALETTE_PAD.left) / CELL_W;
       const rowFromTop = (py - PALETTE_PAD.top) / getCellH();
       return { col: Math.max(0, Math.min(GRID_COLS, col)), row: Math.max(0, Math.min(state.gridRows, state.gridRows - rowFromTop)) };
-    }
-
-    function snapInt(val, min, max) { return Math.max(min, Math.min(max, Math.round(Number.isFinite(val) ? val : min))); }
-
-    function getNodeBoxPixelRect(node) {
-      const ptL = gridToPaletteXY(node.left, node.y);
-      const ptR = gridToPaletteXY(node.right, node.y);
-      return { x1: ptL.x, x2: ptR.x, yCenter: ptL.y, y1: ptL.y - NODE_BOX_HALF_H, y2: ptL.y + NODE_BOX_HALF_H, width: ptR.x - ptL.x, height: NODE_BOX_HALF_H * 2 };
-    }
-
-    function hitTestNodeBox(node, px, py) {
-      const rect = getNodeBoxPixelRect(node);
-      if (py < rect.y1 - 5 || py > rect.y2 + 5) return null;
-      const edgeZone = Math.min(NODE_EDGE_HIT_W, Math.max(7, rect.width * 0.28));
-      if (px >= rect.x1 - NODE_EDGE_HIT_W && px <= rect.x1 + edgeZone) return 'left';
-      if (px >= rect.x2 - edgeZone && px <= rect.x2 + NODE_EDGE_HIT_W) return 'right';
-      if (px > rect.x1 + edgeZone && px < rect.x2 - edgeZone) return 'center';
-      return null;
     }
 
     function evaluateSingleEdgeAtTau(x0, x1, mode, localTau) {
@@ -339,32 +242,11 @@
       return { col: leftCol + s * (rightCol - leftCol), row: node0.y + localTau * (node1.y - node0.y) };
     }
 
-    function getShapeAlphaAtRow(shape, row) {
-      const colorObj = COLORS[shape.color] || COLORS.green;
-      const totalSpan = Math.max(0.001, shape.nodes[shape.nodes.length - 1].y - shape.nodes[0].y);
-      const overallTau = Math.max(0, Math.min(1, (row - shape.nodes[0].y) / totalSpan));
-      return colorObj.fadeToTransparent ? state.guideOpacity * (1 - overallTau) : state.slideOpacity;
-    }
-
-    function isPointInsideShape(shape, col, row) {
-      const nodes = shape.nodes;
-      if (!nodes || nodes.length < 2 || row < nodes[0].y || row > nodes[nodes.length - 1].y) return false;
-      for (let k = 0; k < nodes.length - 1; k++) {
-        const n0 = nodes[k], n1 = nodes[k + 1];
-        if (row >= n0.y && row <= n1.y) {
-          const localTau = (n1.y - n0.y) <= 0 ? 0 : (row - n0.y) / (n1.y - n0.y);
-          const { leftCol, rightCol } = evaluateSegmentEdgesAtTau(n0, n1, localTau);
-          if (col >= Math.min(leftCol, rightCol) - 0.15 && col <= Math.max(leftCol, rightCol) + 0.15) return true;
-        }
-      }
-      return false;
-    }
-
     function gridToPerspectiveXY(col, rowFromBot) {
       const innerCol = col - 2.0;
       const u = innerCol / 12.0;
       const vFromTop = 1 - (rowFromBot / state.gridRows);
-      const t = (Math.exp(SMOOTH_PERSP_K * vFromTop) - 1) / (Math.exp(SMOOTH_PERSP_K) - 1);
+      const t = Math.max(0, Math.min(1, vFromTop));
       const W = previewCanvas.width, H = previewCanvas.height;
       const y = (PERSP_GEOM.topY + t * (PERSP_GEOM.botY - PERSP_GEOM.topY)) * H;
       const leftX = (PERSP_GEOM.topLeftX + t * (PERSP_GEOM.botLeftX - PERSP_GEOM.topLeftX)) * W;
@@ -373,8 +255,9 @@
     }
 
     function renderPalette() {
+      if (!paletteCtx) return;
       const ctx = paletteCtx;
-      const W = PALETTE_LOGICAL_W, H = PALETTE_LOGICAL_H, rows = state.gridRows, cellH = getCellH();
+      const W = PALETTE_LOGICAL_W, H = PALETTE_LOGICAL_H, rows = state.gridRows;
       ctx.setTransform(paletteCanvas.width / W, 0, 0, paletteCanvas.height / H, 0, 0);
       ctx.clearRect(0, 0, W, H);
       ctx.fillStyle = '#07090e';
@@ -384,7 +267,9 @@
       ctx.fillStyle = '#0c1017';
       ctx.fillRect(gx0, gy0, gw, gh);
 
-      for (const shape of state.shapes) drawSmoothShapeOnPalette(ctx, shape);
+      for (const shape of state.shapes) {
+        drawSmoothShapeOnPalette(ctx, shape);
+      }
 
       ctx.save();
       for (let c = 0; c <= GRID_COLS; c++) {
@@ -396,85 +281,36 @@
         ctx.stroke();
       }
       ctx.restore();
-
-      if (state.mode === 'draw') {
-        for (const sh of getSelectedShapes()) {
-          drawShapeHandlesOnPalette(ctx, sh, sh.id === state.activeShapeId);
-        }
-      }
-    }
-
-    function drawNodeRectangleFrame(ctx, node, nodeIndex, totalNodes, isActiveNode) {
-      const rect = getNodeBoxPixelRect(node);
-      const isStart = nodeIndex === 0, isEnd = nodeIndex === totalNodes - 1;
-      const baseColor = isStart ? '#38bdf8' : (isEnd ? '#fbbf24' : '#e879f9');
-
-      ctx.save();
-      if (isActiveNode) {
-        ctx.fillStyle = 'rgba(217, 70, 239, 0.22)';
-        ctx.fillRect(rect.x1, rect.y1, rect.width, rect.height);
-        ctx.strokeStyle = '#ffffff';
-        ctx.lineWidth = 2.0;
-        ctx.strokeRect(rect.x1, rect.y1, rect.width, rect.height);
-
-        const gripW = 6;
-        ctx.fillStyle = baseColor;
-        ctx.fillRect(rect.x1 - gripW / 2, rect.y1 - 1, gripW, rect.height + 2);
-        ctx.fillRect(rect.x2 - gripW / 2, rect.y1 - 1, gripW, rect.height + 2);
-      } else {
-        ctx.fillStyle = 'rgba(15, 23, 42, 0.45)';
-        ctx.fillRect(rect.x1, rect.y1 + 4, rect.width, rect.height - 8);
-        ctx.strokeStyle = baseColor;
-        ctx.lineWidth = 1.8;
-        ctx.strokeRect(rect.x1, rect.y1 + 4, rect.width, rect.height - 8);
-      }
-      ctx.restore();
     }
 
     function drawSmoothShapeOnPalette(ctx, shape) {
       const nodes = shape.nodes;
       if (!nodes || nodes.length < 2) return;
       ctx.save();
-      ctx.beginPath();
-      ctx.rect(PALETTE_PAD.left, PALETTE_PAD.top, GRID_COLS * CELL_W, PLOT_H);
-      ctx.clip();
-
       for (let k = 0; k < nodes.length - 1; k++) {
         const n0 = nodes[k], n1 = nodes[k + 1];
-        const steps = 30;
+        const steps = 20;
         for (let i = 0; i < steps; i++) {
           const tau0 = i / steps, tau1 = (i + 1) / steps;
-          const alpha = getShapeAlphaAtRow(shape, n0.y + ((tau0 + tau1) * 0.5) * (n1.y - n0.y));
-          if (alpha <= 0.003) continue;
-
           ctx.beginPath();
-          for (let j = 0; j <= 20; j++) {
-            const pt = gridToPaletteXY(evaluateSegmentPoint(n0, n1, j / 20, tau0).col, evaluateSegmentPoint(n0, n1, j / 20, tau0).row);
+          for (let j = 0; j <= 10; j++) {
+            const pt = gridToPaletteXY(evaluateSegmentPoint(n0, n1, j / 10, tau0).col, evaluateSegmentPoint(n0, n1, j / 10, tau0).row);
             if (j === 0) ctx.moveTo(pt.x, pt.y); else ctx.lineTo(pt.x, pt.y);
           }
-          for (let j = 20; j >= 0; j--) {
-            const pt = gridToPaletteXY(evaluateSegmentPoint(n0, n1, j / 20, tau1).col, evaluateSegmentPoint(n0, n1, j / 20, tau1).row);
+          for (let j = 10; j >= 0; j--) {
+            const pt = gridToPaletteXY(evaluateSegmentPoint(n0, n1, j / 10, tau1).col, evaluateSegmentPoint(n0, n1, j / 10, tau1).row);
             ctx.lineTo(pt.x, pt.y);
           }
           ctx.closePath();
-          ctx.fillStyle = `rgba(${COLORS[shape.color].rgb.join(',')},${alpha})`;
+          ctx.fillStyle = `rgba(${COLORS[shape.color].rgb.join(',')}, 0.85)`;
           ctx.fill();
         }
       }
       ctx.restore();
     }
 
-    function drawShapeHandlesOnPalette(ctx, shape, isPrimary) {
-      const nodes = shape.nodes;
-      if (!nodes) return;
-      ctx.save();
-      for (let k = 0; k < nodes.length; k++) {
-        drawNodeRectangleFrame(ctx, nodes[k], k, nodes.length, isPrimary && k === state.activeNodeIndex);
-      }
-      ctx.restore();
-    }
-
     function renderPreview() {
+      if (!previewCtx) return;
       const ctx = previewCtx, W = previewCanvas.width, H = previewCanvas.height, rows = state.gridRows;
       ctx.fillStyle = '#000000';
       ctx.fillRect(0, 0, W, H);
@@ -516,111 +352,133 @@
       ctx.save();
       for (let k = 0; k < nodes.length - 1; k++) {
         const n0 = nodes[k], n1 = nodes[k + 1];
-        const steps = 40;
+        const steps = 25;
         for (let i = 0; i < steps; i++) {
           const tau0 = i / steps, tau1 = (i + 1) / steps;
-          const alpha = getShapeAlphaAtRow(shape, n0.y + ((tau0 + tau1) * 0.5) * (n1.y - n0.y));
-          if (alpha <= 0.003) continue;
-
           ctx.beginPath();
-          for (let j = 0; j <= 20; j++) {
-            const pt = gridToPerspectiveXY(evaluateSegmentPoint(n0, n1, j / 20, tau0).col, evaluateSegmentPoint(n0, n1, j / 20, tau0).row);
+          for (let j = 0; j <= 10; j++) {
+            const pt = gridToPerspectiveXY(evaluateSegmentPoint(n0, n1, j / 10, tau0).col, evaluateSegmentPoint(n0, n1, j / 10, tau0).row);
             if (j === 0) ctx.moveTo(pt.x, pt.y); else ctx.lineTo(pt.x, pt.y);
           }
-          for (let j = 20; j >= 0; j--) {
-            const pt = gridToPerspectiveXY(evaluateSegmentPoint(n0, n1, j / 20, tau1).col, evaluateSegmentPoint(n0, n1, j / 20, tau1).row);
+          for (let j = 10; j >= 0; j--) {
+            const pt = gridToPerspectiveXY(evaluateSegmentPoint(n0, n1, j / 10, tau1).col, evaluateSegmentPoint(n0, n1, j / 10, tau1).row);
             ctx.lineTo(pt.x, pt.y);
           }
           ctx.closePath();
-          ctx.fillStyle = `rgba(${COLORS[shape.color].rgb.join(',')},${alpha})`;
+          ctx.fillStyle = `rgba(${COLORS[shape.color].rgb.join(',')}, 0.85)`;
           ctx.fill();
         }
       }
       ctx.restore();
     }
 
-    function renderAll() { renderPalette(); renderPreview(); }
+    function renderAll() {
+      renderPalette();
+      renderPreview();
+    }
+
     function getActiveShape() { return state.shapes.find(s => s.id === state.activeShapeId) || null; }
-    function getSelectedShapes() { const set = new Set(state.selectedShapeIds); return state.shapes.filter(s => set.has(s.id)); }
 
     function selectSingleShape(shapeId, nodeIdx = 0) {
       state.selectedShapeIds = shapeId ? [shapeId] : [];
       state.activeShapeId = shapeId;
       state.activeNodeIndex = nodeIdx;
-      syncUIWithSelectedShape();
-    }
-
-    function syncUIWithSelectedShape() {
-      const activeShape = getActiveShape();
-      let cMode = state.currentCurveMode;
-      if (activeShape) {
-        const segIdx = Math.min(state.activeNodeIndex, activeShape.nodes.length - 2);
-        cMode = activeShape.nodes[segIdx]?.curveMode || 'straight';
-      }
-      document.querySelectorAll('.curve-btn').forEach(btn => btn.classList.toggle('active', btn.dataset.curve === cMode));
-      document.getElementById('lblCurveModeName').textContent = CURVE_MODES[cMode] || CURVE_MODES.straight;
-
-      const btnAdd = document.getElementById('btnAddRelayPoint');
-      if (btnAdd) btnAdd.classList.toggle('active-add', state.relaySubMode === 'add');
     }
 
     function toggleRelayAddMode() {
       state.relaySubMode = state.relaySubMode === 'add' ? null : 'add';
-      syncUIWithSelectedShape();
-      renderAll();
+      document.getElementById('btnAddRelayPoint').classList.toggle('active-add', state.relaySubMode === 'add');
     }
 
     function insertRelayPointAtRow(shape, rawRowFloat) {
-      const step1920 = getMinFineStepY();
       let segIdx = -1;
       for (let k = 0; k < shape.nodes.length - 1; k++) {
         if (rawRowFloat >= shape.nodes[k].y && rawRowFloat <= shape.nodes[k + 1].y) { segIdx = k; break; }
       }
-      if (segIdx < 0 || shape.nodes[segIdx + 1].y - shape.nodes[segIdx].y < step1920 * 2) return false;
-
-      saveHistory();
-      const newY = snapFine1920(rawRowFloat, shape.nodes[segIdx].y + step1920, shape.nodes[segIdx + 1].y - step1920);
-      const { leftCol, rightCol } = evaluateSegmentEdgesAtTau(shape.nodes[segIdx], shape.nodes[segIdx + 1], (newY - shape.nodes[segIdx].y) / (shape.nodes[segIdx + 1].y - shape.nodes[segIdx].y));
+      if (segIdx < 0) return false;
+      const newY = Math.max(shape.nodes[segIdx].y + 0.1, Math.min(shape.nodes[segIdx+1].y - 0.1, rawRowFloat));
+      const { leftCol, rightCol } = evaluateSegmentEdgesAtTau(shape.nodes[segIdx], shape.nodes[segIdx+1], (newY - shape.nodes[segIdx].y) / (shape.nodes[segIdx+1].y - shape.nodes[segIdx].y));
       shape.nodes.splice(segIdx + 1, 0, {
-        left: snapInt(leftCol, 0, GRID_COLS - 1),
-        right: Math.max(snapInt(leftCol, 0, GRID_COLS - 1) + 1, snapInt(rightCol, 1, GRID_COLS)),
+        left: Math.round(leftCol),
+        right: Math.max(Math.round(leftCol) + 1, Math.round(rightCol)),
         y: newY,
         curveMode: shape.nodes[segIdx].curveMode
       });
-      state.activeNodeIndex = segIdx + 1;
-      syncUIWithSelectedShape();
       renderAll();
       return true;
     }
 
-    const dragState = { active: false, type: null, nodeIndex: 0, pendingSnapshot: null, startGridCol: 0, initialNodes: null };
-
     paletteCanvas.addEventListener('pointerdown', (evt) => {
       evt.preventDefault();
-      paletteCanvas.setPointerCapture(evt.pointerId);
       const pos = getCanvasMousePos(paletteCanvas, evt);
       const gridPt = paletteXYToGrid(pos.x, pos.y);
-
       const activeShape = getActiveShape();
 
-      // 中継点追加モード時の処理
-      if (state.relaySubMode === 'add' && activeShape && isPointInsideShape(activeShape, gridPt.col, gridPt.row)) {
+      if (state.relaySubMode === 'add' && activeShape) {
         insertRelayPointAtRow(activeShape, gridPt.row);
         return;
       }
 
-      if (activeShape) {
-        for (let k = 0; k < activeShape.nodes.length; k++) {
-          const zone = hitTestNodeBox(activeShape.nodes[k], pos.x, pos.y);
-          if (zone) {
-            state.activeNodeIndex = k;
-            dragState.active = true;
-            dragState.type = zone;
-            dragState.nodeIndex = k;
-            dragState.pendingSnapshot = createSnapshot();
-            dragState.startGridCol = Math.round(gridPt.col);
-            dragState.initialNodes = JSON.parse(JSON.stringify(activeShape.nodes));
-            syncUIWithSelectedShape();
-            renderAll();
-            return;
-          }
+      for (let i = state.shapes.length - 1; i >= 0; i--) {
+        if (isPointInsideShape(state.shapes[i], gridPt.col, gridPt.row)) {
+          selectSingleShape(state.shapes[i].id, 0);
+          renderAll();
+          return;
+        }
+      }
+
+      if (state.relaySubMode === 'add') return;
+
+      const startLeft = Math.max(0, Math.min(GRID_COLS - 2, Math.floor(gridPt.col) - 1));
+      const newShape = normalizeShape({
+        id: 'shape_' + Math.random(),
+        color: state.currentColor,
+        nodes: [
+          { left: startLeft, right: startLeft + 2, y: 0, curveMode: state.currentCurveMode },
+          { left: startLeft, right: startLeft + 2, y: Math.max(1, Math.round(gridPt.row)), curveMode: 'straight' }
+        ]
+      });
+      state.shapes.push(newShape);
+      selectSingleShape(newShape.id, 1);
+      renderAll();
+    });
+
+    document.querySelectorAll('.curve-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const mode = btn.dataset.curve;
+        state.currentCurveMode = mode;
+        const sh = getActiveShape();
+        if (sh && sh.nodes.length >= 2) {
+          const segIdx = Math.min(state.activeNodeIndex, sh.nodes.length - 2);
+          sh.nodes[segIdx].curveMode = mode;
+          renderAll();
+        }
+      });
+    });
+
+    document.getElementById('btnAddRelayPoint').addEventListener('click', toggleRelayAddMode);
+    document.getElementById('btnClearAll').addEventListener('click', () => {
+      state.shapes = [];
+      selectSingleShape(null);
+      renderAll();
+    });
+
+    document.querySelectorAll('.color-swatch').forEach(btn => {
+      btn.addEventListener('click', () => {
+        state.currentColor = btn.dataset.color;
+        document.querySelectorAll('.color-swatch').forEach(b => b.classList.toggle('active', b.dataset.color === state.currentColor));
+      });
+    });
+
+    function getCanvasMousePos(canvas, evt) {
+      const rect = canvas.getBoundingClientRect();
+      return { x: (evt.clientX - rect.left) * (PALETTE_LOGICAL_W / rect.width), y: (evt.clientY - rect.top) * (PALETTE_LOGICAL_H / rect.height) };
+    }
+
+    window.onload = () => {
+      setPaletteZoom(100);
+      renderAll();
+    };
+  </script>
+</body>
+</html>
